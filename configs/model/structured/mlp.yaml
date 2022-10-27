@@ -1,0 +1,4 @@
+name: mlp
+num_layers: 5
+d_model: 256
+timestep_conditioning: cat # cat, gain_bias, none

@@ -1,0 +1,2 @@
+name: h(x)  # Condition only on image feats
+method: roi  # using ['roi', 'seq' (DETR-style), 'both']

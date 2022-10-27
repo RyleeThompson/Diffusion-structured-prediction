@@ -1,0 +1,112 @@
+command: 'source /coreflow/venv/bin/activate; python3 tune.py'
+setup_command: 'cp utils/cluster/tune.py .; source setup.sh'
+name: DDPM object detection grid search - encoder seq img feats
+is_parent: true
+project_id: nrg
+priority: 1
+
+permissions:
+  viewers: mlr
+
+resources:
+  # cluster: aws
+  # docker_image: docker.apple.com/vthilak/ubuntu18.04-cuda11.1-py3.7-jax:0.3.0
+  docker_image: docker.apple.com/vthilak/ubuntu20.04-cuda11.6:0.0.1
+  timeout: 7d
+  disk_gb: 1000
+
+  # cluster: 'KUBE_ALL'
+  # num_gpus: 1
+  # num_cpus: 10
+  # memory_gb: 95
+  num_gpus: 4
+  num_cpus: 40
+  memory_gb: 380
+
+  # num_gpus: 1
+  # num_cpus: 12 # <=12x num_gpus
+  # memory_gb: 143 # <=143x num_gpus
+
+# cluster_options:
+  # aws:
+    # instance_type: p4d.24xlarge
+
+tune:
+  name: 'BB DDPM hyperparam search - encoder seq img feats'
+  search_strategy:
+    type: RANDOM_SEARCH
+
+  # objective_label: valid_delta_rmse
+  # objective_goal: MAXIMIZE
+
+  objective_label: valid_map_50
+  objective_goal: MAXIMIZE
+
+  max_concurrent_trials: 50
+  num_trials: 600
+  trials_per_parameter_set: 1
+
+  hyperparameters:
+    model.structured.mlp.num_layers:
+      type: INTEGER
+      range: [1, 4]
+
+    model.structured.d_model:
+      type: CATEGORICAL
+      range: [128, 256, 512, 1024]
+
+    model.structured.nhead:
+      type: CATEGORICAL
+      range: [4, 8, 16]
+
+    model.structured.num_layers:
+      type: CATEGORICAL
+      range: [4, 8]
+
+    model.structured.dim_feedforward:
+      type: CATEGORICAL
+      range: [128, 256, 512, 1024]
+
+    model.use_time_embeds:
+      type: CATEGORICAL
+      range: ['combined', False, True, 'learned_1d']
+
+    # model.use_learned_embeds:
+      # type: CATEGORICAL
+      # range: [True, False]
+
+    optimizer.structured.lr:
+      type: CATEGORICAL
+      range: [1e-5, 5e-5, 1e-4, 5e-4, 1e-3]
+
+    optimizer.structured.weight_decay:
+      type: CATEGORICAL
+      range: [0, 1e-5, 5e-5, 1e-4, 5e-4]
+
+    # batch_size:
+      # type: CATEGORICAL
+      # range: [16, 32, 64, 128]
+
+    # diffusion.num_timesteps:
+    #   type: CATEGORICAL
+    #   range: [2, 5, 10, 15, 25, 35, 50, 75]
+
+    # diffusion.loss_type:
+    #   type: CATEGORICAL
+    #   range: ['rescaled_mse', 'kl']
+
+    # diffusion.model_mean_type_bb:
+    #   type: CATEGORICAL
+    #   range: ['start_x', 'prev_x']
+
+    # diffusion.model_var_type:
+      # type: CATEGORICAL
+      # range: ['fixed_small', 'learned_range']
+
+    # diffusion.beta_scheduler:
+    #   type: CATEGORICAL
+    #   range: ['cosine', 'linear', 'log']
+    #
+    # diffusion.step_sampler:
+    #   type: CATEGORICAL
+    #   range: ['uniform', 'loss-second-moment']

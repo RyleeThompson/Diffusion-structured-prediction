@@ -1,0 +1,12 @@
+wandb
+hydra-core
+pycocotools==2.0.4
+Pytorch-lightning==1.6.0
+ipdb
+pygit2
+pgzip
+git+https://github.com/RyleeThompson/tide
+git+https://github.com/facebookresearch/detectron2.git@5aeb252b194b93dc2879b4ac34bc51a31b5aee13
+opencv-python==4.4.0.40
+scipy
+scikit-learn

@@ -1,0 +1,9 @@
+name: transformer
+d_model: 128
+nhead: 4
+dim_feedforward: 128
+dropout: 0.1
+num_layers: 4
+timestep_conditioning: node # cat, none
+use_learned_tgt_embeds: False
+mask_out_bbone_mem: False

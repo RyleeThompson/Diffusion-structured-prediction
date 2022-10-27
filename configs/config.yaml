@@ -1,0 +1,109 @@
+defaults:
+  - _self_
+  # or transformer or transformer-decoder
+  - model/structured: transformer-encoder
+  # x_t is a fully unconditional model, bb_preds for BB predictions, feats for CNN feature maps, both for BB preds & feats
+  - model/structured/conditioning: x_t
+  # How the transformer is conditioned on the timestep.  'node' for inserting a node with time info, 'cat' for concatenating
+  # time info with every token, 'none' for nothing. See files in the path for additional options.
+  - model/structured/timestep_conditioning: node
+  # none only works in the case of unconditional model. This flag is more for BB preds.
+  # 'gt' for noisy GT preds (mixed with detectron2 CNN feats if used with image feat conditioning),
+  # 'detectron2' for Faster-RCNN preds. 
+  - model/backbone: none
+  
+  # The transformer optimizer setup (see configs/optimizer)
+  - optimizer@optimizer.structured: adamw
+  # Backbone is frozen by default. Can also use 'adamw' to unfreeze and set lr and weight_decay params.
+  - optimizer@optimizer.backbone: frozen
+  # This should never really be changed from 'same'
+  - optimizer@optimizer.pred_head: same
+
+  - override hydra/hydra_logging: disabled
+
+
+data:
+  # Whether to perform the log transform on widths and heights we talked about
+  log_transform: False
+  # How to normalize the data. This is the only option.
+  normalization: '[-1, 1]'
+  # Whether to pad the data with noise or gt (see Quip doc)
+  pad_with: noise
+  # How the BB coords are parameterized. Also supports 'xyxy'.
+  bb_fmt: xywh
+  # Whether to randomize the order of the data in the dataloader. Also supports 'once' for
+  # using a static random ordering, or True for randomizing everytime.
+  randomize_order: False
+
+evaluation:
+  # How often to evaluate the model. Larger models will require small eval_b_size.
+  gen_freq: 5
+  nll_freq: 5
+  eval_qty: 128
+  eval_b_size: 128
+
+model:
+  predict_class: True
+  ema_rate: 0.9999
+  max_num_preds: 100
+  # Whether to use matching on the output or not. I think this is broken at this point (sorry, it didn't work well).
+  use_matching: False
+  # The multiplier to be applied to the classification loss in the case the GT is labelled as background.
+  bg_loss_mult: 1
+  # or 'gt' (though only usable when diffusion.loss_type=simple_regression)
+  regress_from: x_t
+  # There are up to 3 different types of tokens given to our model (flatten image features, conditioning tokens, latent tokens).
+  # If True, learn a separate embedding for each type that is added to all of those tokens.
+  use_learned_embeds: False
+  # False, 'separate', 'combined', 'learned_1d', 'learned_2d'
+  # False doesn't change the input tokens at all
+  # 'separate': numbers the conditioning tokens 1-n and the latent tokens 1-n, then adds a positional sinusoidal embedding to them.
+  # 'combined': numbers the conditioning and latent tokens 1-2n, then adds a positional embedding.
+  # 'learned_1d': learns a separate embedding for every possible input token (with the exception of the flattend image features)
+  # 'learned_2d': learns a separate embedding for every possible input token and every timestep (with the exception of flattened image features)
+  # None of these options touch the flattened image features (if they're used); they always use a 2d encoding like DETR
+  use_time_embeds: False
+  # Whether to rescale the diffusion timesteps to be in 0-1000
+  rescale_timesteps: False
+  # Whether or not to mask out the padding in the conditioning tokens when using seq. dim. cat and conditioning on BB preds.
+  # The feat. dim. cat. version is able to see the padding, but I wasn't really sure if the seq. dim. cat. should be able to as well.
+  attend_padding_conditioning: False
+  # Parameters for the MLPs projecting to and from data dimensionality (on either side of the transformer)
+  structured:
+    mlp:
+      num_layers: 1
+      timestep_conditioning: cat # cat, gain_bias, none, sin
+    conditioning:
+      concat_method: seq  # Concat conditioning BB preds along 'seq' or 'feats' dims
+      match_input: False  # Whether to use DETR matching on the input or not
+
+diffusion:
+  num_timesteps: 50
+  beta_scheduler: cosine # ['cosine', 'linear']
+  step_sampler: uniform # ['uniform', 'loss-second-moment']
+  model_var_type: learned_range # ['learned_range', 'learned', 'fixed_small', 'fixed_large']
+  loss_type: rescaled_mse # ['rescaled_mse', 'mse', 'kl', 'rescaled_kl', 'simple_regression']
+
+  model_mean_type_bb: prev_x # ['prev_x', 'start_x', 'epsilon']
+  
+  # This one doesn't do anything (BB positions and classes share the same diffusion process/parameterization)
+  model_mean_type_cls: prev_x # ['prev_x', 'start_x', 'epsilon']
+
+
+batch_size: 32
+num_workers: 4
+epochs: 50
+seed: 42
+dataset: coco  # ['coco', 'tower']
+
+# Only used for the stackable blocks dataset
+max_num_blocks: 5
+bb_ordering: position  # ['size', 'none', 'position']
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  sweep:
+    dir: .
+    subdir: .

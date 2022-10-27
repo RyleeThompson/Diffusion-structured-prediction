@@ -1,0 +1,4 @@
+name: node
+
+type: sin # sin, learned, l_sin
+method: seq # seq, add

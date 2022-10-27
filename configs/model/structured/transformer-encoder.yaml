@@ -1,0 +1,6 @@
+name: transformer-encoder
+d_model: 128
+nhead: 4
+dim_feedforward: 128
+dropout: 0.1
+num_layers: 4

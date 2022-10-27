@@ -1,0 +1,4 @@
+name: detectron2
+model: faster_rcnn_X_101_32x8d_FPN_3x
+nms_thresh: 1.0
+pad_with: zeros  # ['noise', 'zeros']. Zeros is the default, but 'noise' is closer to how our noisy GT experiments work.

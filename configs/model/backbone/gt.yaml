@@ -1,0 +1,8 @@
+name: gt
+num_timesteps: same # 'same' (as model diffusion process) or int
+timestep: 0  # A fraction of num_timesteps to noise the GT to
+# Whether to sample noise once or everytime
+static_noise: False
+model: faster_rcnn_X_101_32x8d_FPN_3x
+# 'False' for no randomization, 'once' to randomize it once and use the same order throughout
+randomize_order: False  # ['False', 'once']
