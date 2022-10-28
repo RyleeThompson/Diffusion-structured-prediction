@@ -70,10 +70,8 @@ class ModelEvaluationCallback(Callback):
     def __init__(self, cfg, base_dir=None, evaluate_before_train=True,
                  overfit=False, evaluators=['nll', 'gen'], task=None,
                  use_valid=False):
-        if base_dir is None:
-            self.base_dir = cfg['results_dir']
-        else:
-            self.base_dir = cfg['results_dir']
+                 
+        self.base_dir = os.path.join(cfg['results_dir'], 'artifacts')
         print('saving to', self.base_dir)
         self.evaluate_before_train = evaluate_before_train
 
@@ -192,7 +190,7 @@ class GeneratorCallback(SingleEvaluatorCallback):
         self.freq = eval_cfg['gen_freq']
         self.train_loader = train_loader
         self.valid_loader = valid_loader
-        self.hist_eval = HistogramEvaluationCallback(self.freq)
+        # self.hist_eval = HistogramEvaluationCallback(self.freq)
         self.sample_vis = SampleVisualizationCallback(cfg, self.freq)
         self.valid_blocks = ValidBlocksCallback(cfg, self.freq)
         self.obj_det_eval = ObjDetEvalCallback(cfg, self.freq)
@@ -253,18 +251,18 @@ class GeneratorCallback(SingleEvaluatorCallback):
                 self.update_and_log_results(cond_metrics, set, trainer, model=model)
                 self.update_and_log_results(delta_metrics, set, trainer, model=model)
 
-        if set == 'valid':
-            hist_eval_fn = self.hist_eval.on_validation_epoch_end
-        else:
-            hist_eval_fn = self.hist_eval.on_train_epoch_end
+        # if set == 'valid':
+        #     hist_eval_fn = self.hist_eval.on_validation_epoch_end
+        # else:
+        #     hist_eval_fn = self.hist_eval.on_train_epoch_end
 
-        model_mmds = hist_eval_fn(
-            save_dir, trainer, gens['final_bboxes'])
-        if self.conditioning_type in ['both', 'bb_preds']:
-            cond_mmds = hist_eval_fn(
-                save_dir, trainer, gens['bbone_preds'], log=False)
-            delta_mmds = self.compute_delta(cond_mmds, model_mmds)
-            self.update_and_log_results(delta_mmds, set, trainer, model=model)
+        # model_mmds = hist_eval_fn(
+        #     save_dir, trainer, gens['final_bboxes'])
+        # if self.conditioning_type in ['both', 'bb_preds']:
+        #     cond_mmds = hist_eval_fn(
+        #         save_dir, trainer, gens['bbone_preds'], log=False)
+        #     delta_mmds = self.compute_delta(cond_mmds, model_mmds)
+        #     self.update_and_log_results(delta_mmds, set, trainer, model=model)
 
         if set == 'valid':
             self.sample_vis.on_validation_epoch_end(
@@ -287,6 +285,7 @@ class ObjDetEvalCallback(SingleEvaluatorCallback):
     def __init__(self, cfg, freq):
         self.freq = freq
         self.tide_eval = TideEvalCallback()
+        self.tide_eval.res_dir = cfg['results_dir']
 
     def evaluate(self, all_bb_pred_pos, all_bb_pred_cls, all_pred_scores, all_gt_pos, all_gt_cls):
         map_dct = self.tide_eval.evaluate(all_bb_pred_pos, all_bb_pred_cls, all_pred_scores, all_gt_pos, all_gt_cls)
@@ -326,17 +325,19 @@ class TideEvalCallback(SingleEvaluatorCallback):
                               'image_id': img_ix})
 
         # import ipdb; ipdb.set_trace()
-        json.dump(preds, open('temp-preds.json', 'w'))
-        json.dump(gts, open('temp-gts.json', 'w'))
+        pred_path = os.path.join(self.res_dir, 'temp-preds.json')
+        gt_path = os.path.join(self.res_dir, 'temp-gts.json')
+        json.dump(preds, open(pred_path, 'w'))
+        json.dump(gts, open(gt_path, 'w'))
 
         tide = TIDE()
         try:
-            tide.evaluate_range(datasets.COCOResult('temp-gts.json'), datasets.COCOResult('temp-preds.json'), mode=TIDE.BOX)
+            tide.evaluate_range(datasets.COCOResult(gt_path), datasets.COCOResult(pred_path), mode=TIDE.BOX)
             set_all_to_zero = False
             title = 'temp-preds'
         except ZeroDivisionError:
             set_all_to_zero = True
-            tide.evaluate_range(datasets.COCOResult('temp-gts.json'), datasets.COCOResult('temp-gts.json'), mode=TIDE.BOX)
+            tide.evaluate_range(datasets.COCOResult(gt_path), datasets.COCOResult(gt_path), mode=TIDE.BOX)
             title = 'temp-gts'
         errors = tide.get_all_errors()
         main_errors = errors['main'][title]
@@ -351,6 +352,10 @@ class TideEvalCallback(SingleEvaluatorCallback):
         if set_all_to_zero:
             for key, val in main_errors.items():
                 main_errors[key] = 0
+
+        os.remove(pred_path)
+        os.remove(gt_path)
+
         return main_errors
 
 class ValidBlocksCallback(SingleEvaluatorCallback):

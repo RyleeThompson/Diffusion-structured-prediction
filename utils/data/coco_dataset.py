@@ -381,7 +381,8 @@ def get_dataset(
         backbone='none', max_num_bbs=coco_max_num_bboxes,
         bb_train_fmt='xywh', randomize_order=False
 ):
-    path = 'dataset/coco2017-1.1.0/data/raw'
+    path = '/scratch/ssd002/datasets/MSCOCO2017'
+    # path = 'dataset/coco2017-1.1.0/data/raw'
     annotations_path = path + f'/annotations/instances_{set}2017.json'
     img_path = path + f'/{set}2017/'
 

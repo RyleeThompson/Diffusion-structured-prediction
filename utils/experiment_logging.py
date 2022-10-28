@@ -120,6 +120,8 @@ class ExperimentHelper():
 
     def insert_results(self, dict_res, iteration):
         results = self.load_results()
+        if len(results) <= iteration:
+            results.append({})
         results[iteration].update(dict_res)
         self.__save_results(results)
 
@@ -133,6 +135,9 @@ class ExperimentHelper():
             pickle.dump(results, f)
 
     def load_results(self):
+        if not os.path.exists(self.__results_file_name):
+            with open(self.__results_file_name, 'wb') as f:
+                pickle.dump([{}], f)
         return get_results(run_dir=self.run_dir)
 
 
@@ -239,25 +244,43 @@ class ExperimentHelper():
 
 
     def __setup_logger(self):
-        logger = logging.getLogger()
+        # logger = logging.getLogger()
 
-        logger.handlers = []
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
+        # logger.handlers = []
+        # handler = logging.StreamHandler(sys.stdout)
+        # handler.setLevel(logging.DEBUG)
+        # logger.addHandler(handler)
 
-        logger.setLevel(logging.DEBUG)
+        # logger.setLevel(logging.DEBUG)
 
-        log_format = logging.Formatter('%(message)s')
+        # log_format = logging.Formatter('%(message)s')
+        # filename = os.path.join(self.run_dir, 'logfile.log')
+        # log_handler = logging.FileHandler(filename)
+        # log_handler.setLevel(logging.INFO)
+        # log_handler.setFormatter(log_format)
+
+        # logger.addHandler(log_handler)
+        # logger.propagate = False
+
+        # self.logger = logging.getLogger()
+        # def setup_logger(use_pytorch_lightning=True):
+        formatter = logging.Formatter('%(levelname)s: %(message)s')
+
         filename = os.path.join(self.run_dir, 'logfile.log')
-        log_handler = logging.FileHandler(filename)
-        log_handler.setLevel(logging.DEBUG)
-        log_handler.setFormatter(log_format)
+        fh = logging.FileHandler(filename=filename)
+        fh.setFormatter(formatter)
 
-        logger.addHandler(log_handler)
-        logger.propagate = False
+        logger = logging.getLogger('my_task')
+        logger.addHandler(fh)
+        logger.setLevel(logging.INFO)
 
-        self.logger = logging.getLogger()
+        # if use_pytorch_lightning:
+        pl_logger = logging.getLogger("pytorch_lightning")
+        pl_logger.handlers.clear()
+        # pl_logger.addHandler(logging.FileHandler(filename=filename))
+
+        logger.info('Logger created')
+        self.logger = logger
 
 
     def __make_run_dir(self, args):
@@ -291,7 +314,7 @@ class ExperimentHelper():
         now += '-' + run_id
         run_dir = os.path.join(self.__results_dir, now)
         os.mkdir(run_dir)
-        os.mkdir(os.path.join(run_dir, 'models'))
+        os.mkdir(os.path.join(run_dir, 'artifacts'))
 
         return run_dir
 

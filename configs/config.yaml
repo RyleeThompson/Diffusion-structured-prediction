@@ -19,7 +19,8 @@ defaults:
   # This should never really be changed from 'same'
   - optimizer@optimizer.pred_head: same
 
-  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
 
 
 data:

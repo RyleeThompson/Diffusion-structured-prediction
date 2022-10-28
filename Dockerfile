@@ -1,7 +1,7 @@
 FROM python:3.8.15-bullseye
 
 RUN apt-get update
-RUN apt-get install ffmpeg libsm6 libxext6 -y
+RUN apt-get install ffmpeg libsm6 libxext6 rsync -y
 
 COPY utils/cluster/requirements.txt requirements.txt
 

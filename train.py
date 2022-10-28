@@ -38,9 +38,13 @@ def main(config: DictConfig):
     # logger = setup_utils.setup_logger()
     cfg = setup_utils.setup_config(config)
 
-    results_directory = 'BB DDPM'
-    cfg['results_dir'] = results_directory
-    helper = experiment_logging.ExperimentHelper(cfg, results_dir=cfg['results_dir'])
+    results_directory = 'BB_DDPM'
+    helper = experiment_logging.ExperimentHelper(cfg, results_dir=results_directory)
+    cfg['results_dir'] = helper.run_dir
+    
+    if 'ckpt_path' not in cfg:
+        cfg['ckpt_path'] = cfg['results_dir']
+
     helper.log(json.dumps(cfg, indent=4, sort_keys=True))
 
     cfg['batch_size'] = int(cfg['batch_size'] // th.cuda.device_count())
@@ -94,7 +98,7 @@ def main(config: DictConfig):
         # gpus=th.cuda.device_count(),
         gpus=num_gpus,
         callbacks=callbacks,
-        default_root_dir=cfg['results_dir'],
+        default_root_dir=cfg['ckpt_path'],
         progress_bar_refresh_rate=prog_bar_freq,
         # strategy='ddp',
         # strategy=DDPStrategy(find_unused_parameters=False)
