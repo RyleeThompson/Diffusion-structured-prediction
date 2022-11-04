@@ -12,12 +12,13 @@ from pytorch_lightning.plugins import DDPPlugin
 from pytorch_lightning.strategies import DDPStrategy
 import logging
 import traceback
+import os
 
 real_run = False
 
 DEBUG = False
 single_gpu = False
-use_valid_set = True
+use_valid_set = False
 overfit = False
 evalu_before = True
 prog_bar_freq = 1
@@ -39,11 +40,28 @@ def main(config: DictConfig):
     cfg = setup_utils.setup_config(config)
 
     results_directory = 'BB_DDPM'
+
+    # import ipdb; ipdb.set_trace()
+    if 'ckpt_path' in cfg:
+        ckpt_path = '/'.join([cfg['ckpt_path'], 'experiment_results', results_directory])
+        if os.path.exists(ckpt_path):
+            run_dirs = os.listdir(ckpt_path)
+            assert len(run_dirs) == 1, run_dirs
+            ckpt_run_id = run_dirs[0].split('-')[-1]
+            cfg['resume_from'] = ckpt_run_id
+
     helper = experiment_logging.ExperimentHelper(cfg, results_dir=results_directory)
     cfg['results_dir'] = helper.run_dir
-    
-    if 'ckpt_path' not in cfg:
+
+    if 'resume_from' not in cfg and 'ckpt_path' not in cfg:
         cfg['ckpt_path'] = cfg['results_dir']
+    elif 'resume_from' in cfg:
+        ckpt_path = '/'.join([cfg['ckpt_path'], 'experiment_results', results_directory])
+        cfg['ckpt_path'] = '/'.join([ckpt_path, os.listdir(ckpt_path)[0]])
+    elif 'ckpt_path' in cfg:
+        ckpt_path = '/'.join([cfg['ckpt_path'], 'experiment_results', results_directory])
+        cfg['ckpt_path'] = '/'.join([ckpt_path, cfg['results_dir'].split(results_directory)[-1]])
+
 
     helper.log(json.dumps(cfg, indent=4, sort_keys=True))
 
@@ -86,6 +104,7 @@ def main(config: DictConfig):
     #         save_top_k=1, monitor="valid_map_50", mode="max",
     #         filename="{epoch:05d}-{valid_map_50:.2f}", every_n_epochs=1)]
             # filename="{epoch:05d}-{valid_map_50:.2f}", every_n_epochs=cfg['evaluation']['gen_freq'])]
+
     trainer = pl.Trainer(
         # limit_train_batches=1,
         limit_val_batches=limit_val_batches,
@@ -99,7 +118,7 @@ def main(config: DictConfig):
         gpus=num_gpus,
         callbacks=callbacks,
         default_root_dir=cfg['ckpt_path'],
-        progress_bar_refresh_rate=prog_bar_freq,
+        # progress_bar_refresh_rate=prog_bar_freq,
         # strategy='ddp',
         # strategy=DDPStrategy(find_unused_parameters=False)
     )
@@ -118,9 +137,19 @@ def main(config: DictConfig):
     #     'train_nll_loader': train_nll_loader,
     #     'valid_nll_loader': valid_nll_loader
     # })
+    if 'resume_from' in cfg:
+        ckpt_dir = '/'.join([cfg['ckpt_path'], 'lightning_logs'])
+        versions = sorted(os.listdir(ckpt_dir))
+        ckpt_dir = '/'.join([ckpt_dir, versions[-1], 'checkpoints'])
+        ckpts = [file for file in os.listdir(ckpt_dir)]
+        ckpts = sorted(ckpts)
+        ckpt_file = '/'.join([ckpt_dir, ckpts[-1]])
+        helper.log('Loading checkpoint from', ckpt_file)
+    else:
+        ckpt_file = None
     try:
         trainer.helper = helper
-        trainer.fit(model, train_loader, val_dataloaders=valid_loader)
+        trainer.fit(model, train_loader, val_dataloaders=valid_loader, ckpt_path=ckpt_file)
     except:
         traceback.print_exc()
         logging.exception('')

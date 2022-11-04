@@ -140,3 +140,5 @@ Results/
 improved_diffusion/
 experiment_results/
 *.sif
+logs/
+8760607/

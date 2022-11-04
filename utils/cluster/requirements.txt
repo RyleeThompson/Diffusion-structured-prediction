@@ -1,7 +1,7 @@
 wandb
 hydra-core
 pycocotools==2.0.4
-Pytorch-lightning==1.6.0
+Pytorch-lightning
 ipdb
 pygit2
 pgzip
@@ -10,3 +10,4 @@ git+https://github.com/facebookresearch/detectron2.git@5aeb252b194b93dc2879b4ac3
 opencv-python==4.4.0.40
 scipy
 scikit-learn
+ema-pytorch

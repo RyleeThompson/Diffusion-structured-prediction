@@ -203,11 +203,15 @@ class GeneratorCallback(SingleEvaluatorCallback):
 
     def on_validation_epoch_end(self, save_dir, trainer, model):
         if self.should_evaluate(trainer):
+            gens_ema = model.ema.ema_model.inference_loader(self.valid_loader, num_batches=self.num_batches)
+            self.evaluate(gens_ema, 'valid_ema', trainer, model.ema.ema_model)
             gens = model.inference_loader(self.valid_loader, num_batches=self.num_batches)
             self.evaluate(gens, 'valid', trainer, model)
 
     def on_train_epoch_end(self, save_dir, trainer, model):
         if self.should_evaluate(trainer):
+            gens_ema = model.ema.ema_model.inference_loader(self.train_loader, num_batches=self.num_batches)
+            self.evaluate(gens_ema, 'train_ema', trainer, model.ema.ema_model)
             gens = model.inference_loader(self.train_loader, num_batches=self.num_batches)
             self.evaluate(gens, 'train', trainer, model)
 

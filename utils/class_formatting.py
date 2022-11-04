@@ -2,7 +2,7 @@ import torch as th
 
 
 def int2softmax(classes, num_classes):
-    return th.eye(num_classes)[classes]
+    return th.eye(num_classes, device=classes.device)[classes]
 
 
 def softmax2int(classes):

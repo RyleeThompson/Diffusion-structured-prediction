@@ -276,8 +276,11 @@ class ExperimentHelper():
 
         # if use_pytorch_lightning:
         pl_logger = logging.getLogger("pytorch_lightning")
-        pl_logger.handlers.clear()
-        # pl_logger.addHandler(logging.FileHandler(filename=filename))
+        # pl_logger.handlers.clear()
+        pl_logger.addHandler(logging.FileHandler(filename=filename))
+
+        logger = logging.getLogger("pytorch_lightning.core")
+        logger.addHandler(logging.FileHandler(filename=filename))
 
         logger.info('Logger created')
         self.logger = logger

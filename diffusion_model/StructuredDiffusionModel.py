@@ -13,6 +13,8 @@ from utils.data.BBox import BBox, create_bbox_like
 from utils.matcher import DiffusionHungarianMatcher
 import os
 import shutil
+from utils.ema_pytorch import EMA
+import copy
 
 
 def get_diffusion_model(cfg, beta_scheduler, g_diffusion, bbox_transformer):
@@ -20,9 +22,10 @@ def get_diffusion_model(cfg, beta_scheduler, g_diffusion, bbox_transformer):
     struc_pred_model = get_transformer(cfg)
     pred_head = PredHeadJoiner(cfg, beta_scheduler, g_diffusion)
 
-    return StructuredDiffusionModel(
+    diff_model = StructuredDiffusionModel(
         cfg, backbone, struc_pred_model, pred_head,
         beta_scheduler, g_diffusion, bbox_transformer)
+    return diff_model
 
 
 def get_structured_pred_model(cfg):
@@ -56,7 +59,6 @@ class StructuredDiffusionModel(pl.LightningModule):
             predict_class=self.predict_class, loss_type=diff_cfg['loss_type'])
         self.opt_cfg = cfg['optimizer']
         self.max_num_preds = cfg['model']['max_num_preds'] if cfg['dataset'] == 'coco' else cfg['max_num_blocks']
-        self.init_ema(cfg['model']['ema_rate'])
         self.regress_from_gt = cfg['model']['regress_from'] == 'gt'
 
         self.match_input = cfg['model']['structured']['conditioning']['match_input']
@@ -66,6 +68,11 @@ class StructuredDiffusionModel(pl.LightningModule):
             if os.path.exists(self.match_ix_subdir):
                 shutil.rmtree(self.match_ix_subdir)
             os.makedirs(self.match_ix_subdir)
+
+        self.training_outputs = None
+        self.validation_outputs = None
+
+        self.ema = EMA(self, beta=cfg['model']['ema_rate'], update_after_step=100, update_every=10, power=3/4)
 
     def forward(self, batch, clip_denoised=True, inference=False, bbone_preds=None):
         if not self.predict_class:
@@ -130,6 +137,7 @@ class StructuredDiffusionModel(pl.LightningModule):
         # import ipdb; ipdb.set_trace()
         batch = self.prepare_training_batch(batch)
         model_out, _ = self.forward(batch, clip_denoised=False)
+        self.ema.update(self)
         # return {'loss': th.tensor([0])}
         return model_out
 
@@ -143,12 +151,12 @@ class StructuredDiffusionModel(pl.LightningModule):
         #     bbox_like=x_start, class_fmt='bits')
         return batch
 
-    def init_ema(self, ema_rate):
-        for name, param in self.named_parameters():
-            name = name.replace('.', '-')
-            if param.requires_grad:
-                self.register_buffer('ema_param_' + name, th.clone(param.detach()))
-        self.ema_rate = ema_rate
+    # def init_ema(self, ema_rate):
+    #     for name, param in self.named_parameters():
+    #         name = name.replace('.', '-')
+    #         if param.requires_grad:
+    #             self.register_buffer('ema_param_' + name, th.clone(param.detach()))
+    #     self.ema_rate = ema_rate
 
     def match_fn(self, batch):
         pred_ixs = []
@@ -326,14 +334,32 @@ class StructuredDiffusionModel(pl.LightningModule):
             result.append(unmasked_preds)
         return result
 
+    def on_save_checkpoint(self, checkpoint):
+        checkpoint['training_outputs'] = self.training_outputs
+        checkpoint['validation_outputs'] = self.validation_outputs
+        if hasattr(self.backbone.bb_predictor, 'ix_dct'):
+            checkpoint['ix_dct'] = self.backbone.bb_predictor.ix_dct
+        if hasattr(self.backbone.bb_predictor, 'noise_dct'):
+            checkpoint['noise_dct'] = self.backbone.bb_predictor.noise_dct
+        return super().on_save_checkpoint(checkpoint)
+
+    def on_load_checkpoint(self, checkpoint):
+        self.training_outputs = checkpoint['training_outputs']
+        self.validation_outputs = checkpoint['validation_outputs']
+        if 'ix_dct' in checkpoint:
+            self.backbone.bb_predictor.ix_dct = checkpoint['ix_dct']
+        if 'noise_dct' in checkpoint:
+            self.backbone.bb_predictor.noise_dct = checkpoint['noise_dct']
+        return super().on_load_checkpoint(checkpoint)
+
     def training_epoch_end(self, outputs):
         self.training_outputs = outputs  # So we can access training info in callbacks
-        for name, model_param in self.named_parameters():
-            name = name.replace('.', '-')
-            if model_param.requires_grad:
-                ema_param = getattr(self, 'ema_param_' + name)
-                ema_param.detach().mul_(self.ema_rate).add_(model_param, alpha=1 - self.ema_rate)
-                setattr(self, 'ema_param_' + name, ema_param)
+        # for name, model_param in self.named_parameters():
+        #     name = name.replace('.', '-')
+        #     if model_param.requires_grad:
+        #         ema_param = getattr(self, 'ema_param_' + name)
+        #         ema_param.detach().mul_(self.ema_rate).add_(model_param, alpha=1 - self.ema_rate)
+        #         setattr(self, 'ema_param_' + name, ema_param)
 
     def validation_epoch_end(self, outputs):
         self.validation_outputs = outputs

@@ -239,18 +239,20 @@ class GTruthBBPredictor(pl.LightningModule):
 
         self.static_noise = cfg['model']['backbone']['static_noise']
         if self.static_noise:
-            self.noise_subdir = 'dataset/coco2017-1.1.0/noise'
-            if os.path.exists(self.noise_subdir):
-                shutil.rmtree(self.noise_subdir)
-            os.makedirs(self.noise_subdir)
+            self.noise_dct = {}
+            # self.noise_subdir = 'dataset/coco2017-1.1.0/noise'
+            # if os.path.exists(self.noise_subdir):
+            #     shutil.rmtree(self.noise_subdir)
+            # os.makedirs(self.noise_subdir)
 
         self.predict_class = cfg['model']['predict_class']
         self.randomize_order = cfg['model']['backbone']['randomize_order']
         if self.randomize_order == 'once':
-            self.ix_subdir = 'dataset/coco2017-1.1.0/rand_ixs'
-            if os.path.exists(self.ix_subdir):
-                shutil.rmtree(self.ix_subdir)
-            os.makedirs(self.ix_subdir)
+            self.ix_dct = {}
+            # self.ix_subdir = 'dataset/coco2017-1.1.0/rand_ixs'
+            # if os.path.exists(self.ix_subdir):
+                # shutil.rmtree(self.ix_subdir)
+            # os.makedirs(self.ix_subdir)
 
     def forward(self, batch, *args, **kwargs):
         x_start = batch['x_start']
@@ -279,16 +281,22 @@ class GTruthBBPredictor(pl.LightningModule):
         x_start_tensor = th.cat([x_start['bbox'], x_start['classes_bits']], dim=-1)
         noise = []
         for path in paths:
-            path = f'{self.noise_subdir}/{path}'
-            if os.path.exists(path):
-                try:
-                    noise_sample = th.load(path).to(self.device)
-                except:
-                    print(path)
-                    raise Exception()
+            if path in self.noise_dct:
+                noise_sample = self.noise_dct[path].to(self.device)
             else:
                 noise_sample = th.randn_like(x_start_tensor[0]).to(self.device)
-                th.save(noise_sample, path)
+                self.noise_dct[path] = noise_sample.to(th.device('cpu'))
+                
+            # path = f'{self.noise_subdir}/{path}'
+            # if os.path.exists(path):
+                # try:
+                    # noise_sample = th.load(path).to(self.device)
+                # except:
+                    # print(path)
+                    # raise Exception()
+            # else:
+                # noise_sample = th.randn_like(x_start_tensor[0]).to(self.device)
+                # th.save(noise_sample, path)
             noise.append(noise_sample)
 
         noise = th.stack(noise).to(self.device)
@@ -323,18 +331,26 @@ class GTruthBBPredictor(pl.LightningModule):
         num_bbs = preds['padding_mask'].sum(-1)
         rand_ixs = []
         for num_bbs_img, path in zip(num_bbs, paths):
-            path = f'{self.ix_subdir}/{path}'
-            if os.path.exists(path):
-                try:
-                    rand_ixs_sample = th.load(path).to(self.device)
-                except:
-                    print(path)
-                    raise Exception()
+            if path in self.ix_dct:
+                rand_ixs_sample = self.ix_dct[path].to(self.device)
             else:
                 rand_ixs_sample = th.randperm(num_bbs_img).to(self.device)
                 leftover_ixs = th.arange(num_bbs_img, max_num_bbs).to(self.device)
                 rand_ixs_sample = th.cat([rand_ixs_sample, leftover_ixs])
-                th.save(rand_ixs_sample, path)
+                self.ix_dct[path] = rand_ixs_sample.to(th.device('cpu'))
+
+            # path = f'{self.ix_subdir}/{path}'
+            # if os.path.exists(path):
+                # try:
+                    # rand_ixs_sample = th.load(path).to(self.device)
+                # except:
+                    # print(path)
+                    # raise Exception()
+            # else:
+                # rand_ixs_sample = th.randperm(num_bbs_img).to(self.device)
+                # leftover_ixs = th.arange(num_bbs_img, max_num_bbs).to(self.device)
+                # rand_ixs_sample = th.cat([rand_ixs_sample, leftover_ixs])
+                # th.save(rand_ixs_sample, path)
             rand_ixs.append(rand_ixs_sample)
 
         rand_ixs = th.stack(rand_ixs).to(self.device)
