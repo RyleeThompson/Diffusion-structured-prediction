@@ -386,7 +386,7 @@ def get_dataset(
     annotations_path = path + f'/annotations/instances_{set}2017.json'
     img_path = path + f'/{set}2017/'
 
-    new_path = f'dataset/coco2017-1.1.0/{set}_anns'
+    new_path = f'/scratch/ssd004/scratch/rylee/coco2017-1.1.0/{set}_anns'
     if not os.path.exists(new_path):
         os.makedirs(new_path, exist_ok=True)
         try:
