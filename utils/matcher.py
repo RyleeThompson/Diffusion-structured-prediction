@@ -121,6 +121,7 @@ class HungarianMatcher(nn.Module):
 
         sizes = [len(v["boxes"]) for v in targets]
         indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+
         return [(th.as_tensor(i, dtype=th.int64), th.as_tensor(j, dtype=th.int64)) for i, j in indices]
 
 
@@ -146,8 +147,14 @@ class DiffusionHungarianMatcher(HungarianMatcher):
         for ix in range(len(targets['bbox'])):
             dct = {'labels': targets['classes'][ix], 'boxes': targets['bbox'][ix]}
             target_lst.append(dct)
-        pred_dct = {'pred_logits': preds['classes_softmax'].to(targets['bbox'].device), 'pred_boxes': preds['bbox'].to(targets['bbox'].device)}
-        # import ipdb; ipdb.set_trace()
+        if preds.train_cls_fmt == 'softmax':
+            pred_cls = preds['classes_softmax'].clone().clamp(-1, 1)
+            pred_cls = (pred_cls + 1) / 2
+            norm = pred_cls.sum(-1).unsqueeze(-1)
+            pred_cls = pred_cls / (norm + 1e-5)
+        else:
+            pred_cls = preds['classes_softmax']
+        pred_dct = {'pred_logits': pred_cls.to(targets['bbox'].device), 'pred_boxes': preds['bbox'].to(targets['bbox'].device)}
         ixs = super().forward(pred_dct, target_lst)
 
         pred_ixs = th.stack([ix[0] for ix in ixs]).to(targets['bbox'].device)

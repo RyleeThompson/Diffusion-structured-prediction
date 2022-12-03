@@ -54,13 +54,10 @@ class BBox:
         self.class_fmt = class_fmt
         if class_fmt == 'int':
             self.classes = classes
-            self.store_dct['scores'] = self.scores_ones()
         elif class_fmt == 'bits':
             self.classes_bits = classes
-            self.store_dct['scores'] = self.scores_ones()
         elif class_fmt == 'softmax':
             self.classes_softmax = classes
-            self.store_dct['scores'] = self.scores_soft()
 
         if self.train_cls_fmt == 'bits':
             self['train_cls_fmt'] = self['classes_bits']
@@ -253,6 +250,7 @@ class BBox:
         self['classes_softmax'] = cls.int2softmax(
             self['classes'], num_classes=self.num_classes)
         self['train_cls_fmt'] = self['classes_' + self.train_cls_fmt]
+        self['scores'] = self.scores_ones()
 
     @property
     def classes_bits(self):
@@ -265,7 +263,7 @@ class BBox:
         self['classes_softmax'] = cls.int2softmax(
             self['classes'], num_classes=self.num_classes)
         self['train_cls_fmt'] = self['classes_' + self.train_cls_fmt]
-
+        self['scores'] = self.scores_ones()
 
     @property
     def classes_softmax(self):
@@ -278,6 +276,7 @@ class BBox:
         self['classes_bits'] = cls.int2scaledbits(
             self['classes'], num_classes=self.num_classes)
         self['train_cls_fmt'] = self['classes_' + self.train_cls_fmt]
+        self['scores'] = self.scores_soft()
         
 
     @property
