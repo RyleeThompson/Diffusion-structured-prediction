@@ -6,8 +6,9 @@ import os
 from datetime import datetime
 import subprocess
 import numpy as np
+from utils.experiment_logging import get_results, get_memory_usage
 
-wandb_entity = 'ggm-metrics'
+wandb_entity = 'rylee'
 
 def get_run_dir(args):
 	for root, subdir, files in os.walk(args.dir):
@@ -67,40 +68,42 @@ def resume_wandb_run(project, wandb_id):
 
 
 def save_results_to_wandb(args, run_dir):
-	with open(os.path.join(run_dir, 'results.h5'), 'rb') as f:
-		res = []
-		while 1:
-			try:
-				res += [pickle.load(f)]
-			except EOFError:
-				break
-	if len(res) == 1:
-		res = res[0]
-		temp = []
-		for key, val in res.items():
-			temp.append(val)
-		res = temp
+	res = get_results(run_dir=run_dir)
+	# with open(os.path.join(run_dir, 'results.h5'), 'rb') as f:
+	# 	res = []
+	# 	while 1:
+	# 		try:
+	# 			res += [pickle.load(f)]
+	# 		except EOFError:
+	# 			break
+	# if len(res) == 1:
+	# 	res = res[0]
+	# 	temp = []
+	# 	for key, val in res.items():
+	# 		temp.append(val)
+	# 	res = temp
 
 	max_epoch = len(res)
 	for epoch in range(wandb.run.step, max_epoch):
 		wandb.log(res[epoch], step=epoch)
 
-	try:
-		with open(os.path.join(run_dir, 'memory.h5'), 'rb') as f:
-			res = []
-			while 1:
-				try:
-					res += pickle.load(f)
-				except EOFError:
-					break
+	# try:
+	memory = get_memory_usage(run_dir=run_dir)
+		# with open(os.path.join(run_dir, 'memory.h5'), 'rb') as f:
+		# 	res = []
+		# 	while 1:
+		# 		try:
+		# 			res += pickle.load(f)
+		# 		except EOFError:
+		# 			break
 
-		x_values = np.arange(len(res)) * 5 / 3600
-		data = [[x, y] for (x, y) in zip(x_values, res)]
-		table = wandb.Table(data=data, columns = ["Time (h)", "Mem usage (GB)"])
-		wandb.log({"my_custom_plot_id" : wandb.plot.line(table, "Time (h)", "Mem usage (GB)", title="Mem usage (GB) vs. time")})
+	x_values = np.arange(len(memory)) * 5 / 3600
+	data = [[x, y] for (x, y) in zip(x_values, memory)]
+	table = wandb.Table(data=data, columns = ["Time (h)", "Mem usage (GB)"])
+	wandb.log({"my_custom_plot_id" : wandb.plot.line(table, "Time (h)", "Mem usage (GB)", title="Mem usage (GB) vs. time")})
 
-	except FileNotFoundError:
-		pass
+	# except FileNotFoundError:
+		# pass
 
 
 if __name__ == '__main__':

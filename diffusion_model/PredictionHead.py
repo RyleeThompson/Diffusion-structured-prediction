@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from utils.data.coco_dataset import coco_num_classes
 from utils import class_formatting as cls
 import torch as th
+from utils.data.BBox import BBox, create_bbox_like
 
 
 class PredHeadJoiner(pl.LightningModule):
@@ -28,17 +29,65 @@ class PredHeadJoiner(pl.LightningModule):
         self.regress_from_gt = cfg['model']['regress_from'] == 'gt'
         self.bg_loss_mult = cfg['model']['bg_loss_mult'] if not self.regress_from_gt else 0
 
+        if cfg['model']['use_matching']:
+            self.matcher = DiffusionHungarianMatcher()
+        else:
+            self.matcher = self.no_matching
+
+    def no_matching(self, preds, tgt, *args, **kwargs):
+        return None, None
+
 
     def forward(self, x, batch, clip_denoised, inference=False):
-        pos_head_res = self.bbox_pos_head(x, batch, clip_denoised, 'bbox', inference=inference)
+        pos_head_pred = self.bbox_pos_head(x, batch, clip_denoised, 'bbox', inference=inference)
         if hasattr(self, 'cls_head'):
-            cls_head_res = self.cls_head(x, batch, clip_denoised, 'classes_bits', inference=inference)
+            cls_head_pred = self.cls_head(x, batch, clip_denoised, 'classes_bits', inference=inference)
         else:
-            cls_head_res = None
-        if inference:
-            return self.combine_results(pos_head_res, cls_head_res=cls_head_res)
+            cls_head_pred = None
+        
+        if inference is False:
+            pos_start_pred = pos_head_pred['pred_xstart']
+            cls_start_pred = cls_head_pred['pred_xstart']
+            x_start_pred = create_bbox_like(pos_start_pred, cls_start_pred, batch['x_start']['padding_mask'], batch['x_start'], class_fmt='bits')
+            pred_matched_ix, tgt_matched_ix = self.matcher(x_start_pred, batch['x_start'])
+
+            if pred_matched_ix is not None:
+                self.reindex_dct(pos_head_pred, pred_matched_ix)
+                if cls_head_pred is not None:
+                    self.reindex_dct(cls_head_pred, pred_matched_ix)
+                self.reindex_batch(batch, tgt_matched_ix)
+
+            pos_head_loss = self.bbox_pos_head.get_loss(pos_head_pred, batch, 'bbox')
+            if cls_head_pred is not None:
+                cls_head_loss = self.cls_head.get_loss(cls_head_pred, batch, 'classes_bits')
+            else:
+                cls_head_loss = None
+
+            return self.combine_losses(pos_head_loss, batch, cls_head_res=cls_head_loss)
+
         else:
-            return self.combine_losses(pos_head_res, batch, cls_head_res=cls_head_res)
+            return self.combine_results(pos_head_pred, cls_head_res=cls_head_pred)
+
+    def reindex_dct(self, dct, ixs):
+        ixs = ixs.clone()
+        for key, val in dct.items():
+            dct[key] = self.reindex_tensor(val, ixs)
+        return dct
+
+    def reindex_batch(self, batch, ixs):
+        batch['x_start'] = batch['x_start'].reindex(ixs)
+        batch['x_t'] = batch['x_t'].reindex(ixs)
+        batch['noise'] = self.reindex_dct(batch['noise'], ixs)
+        return batch
+
+    def reindex_tensor(self, tensor, ixs):
+        if len(tensor.shape) == 3:
+            temp_ixs = ixs.unsqueeze(-1)
+            temp_ixs = temp_ixs.expand(-1, -1, tensor.shape[-1])
+        else:
+            temp_ixs = ixs
+        tensor = tensor.gather(1, temp_ixs)
+        return tensor
 
     def combine_losses(self, pos_head_res, batch, cls_head_res=None):
         loss_dct = {}
@@ -108,13 +157,10 @@ class MLPPredHead(pl.LightningModule):
             sampler=diff_cfg.get('sampler'), eta=diff_cfg.get('eta'),
             predict_class=predict_class, loss_type=diff_cfg['loss_type'])
         self.g_diffusion = g_diffusion
-        if cfg['model']['use_matching']:
-            self.matcher = DiffusionHungarianMatcher(cfg)
-        else:
-            self.matcher = self.no_matching
-
-    def no_matching(self, model_out, batch, *args, **kwargs):
-        return batch
+        # if cfg['model']['use_matching']:
+        #     self.matcher = DiffusionHungarianMatcher(cfg)
+        # else:
+        #     self.matcher = self.no_matching
 
     def __init_mean_var_fns(self, cfg, out_dim):
         pred_cfg = cfg['model']['structured']['mlp']
@@ -168,15 +214,17 @@ class MLPPredHead(pl.LightningModule):
             model_mean, model_var_out, x_t=batch['x_t'][feat_key], t=batch['t'],
             clip_denoised=clip_denoised)
 
-        if inference is False:
-            return self.get_loss(model_out, batch, feat_key)
-        else:
-            # for key, val in model_out.items():
-            #     model_out[key] = val.flatten(start_dim=0, end_dim=1)
-            return model_out
+        return model_out
+
+        # if inference is False:
+        #     return self.get_loss(model_out, batch, feat_key)
+        # else:
+        #     # for key, val in model_out.items():
+        #     #     model_out[key] = val.flatten(start_dim=0, end_dim=1)
+        #     return model_out
 
     def get_loss(self, model_out, batch, feat_key):
-        batch = self.matcher(model_out, batch)
+        # import ipdb; ipdb.set_trace()
         # for key, val in model_out.items():
         #     model_out[key] = val.flatten(start_dim=0, end_dim=1)
         loss_dct = self.loss_calculator(model_out, feat_key=feat_key, **batch)

@@ -112,7 +112,7 @@ class HungarianMatcher(nn.Module):
         cost_giou = -generalized_box_iou(out_bbox, tgt_bbox)
 
         # Final cost matrix
-        # try:
+        # import ipdb; ipdb.set_trace()
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
         # except:
             # import ipdb; ipdb.set_trace()
@@ -131,7 +131,7 @@ class DiffusionHungarianMatcher(HungarianMatcher):
 
     @th.no_grad()
     def forward(self, preds, targets):
-        preds = preds.clone().to(targets['bbox'].device)
+        preds = preds.clone().to(targets.device)
         preds['bbox'] = preds['bbox'].clamp(-1, 1)
         preds = preds.inverse_normalize().to_xyxy()
         #.unmask(use_cls=preds.unmask_with_cls)
@@ -146,11 +146,12 @@ class DiffusionHungarianMatcher(HungarianMatcher):
         for ix in range(len(targets['bbox'])):
             dct = {'labels': targets['classes'][ix], 'boxes': targets['bbox'][ix]}
             target_lst.append(dct)
-        pred_dct = {'pred_logits': preds['classes_softmax'], 'pred_boxes': preds['bbox']}
+        pred_dct = {'pred_logits': preds['classes_softmax'].to(targets['bbox'].device), 'pred_boxes': preds['bbox'].to(targets['bbox'].device)}
+        # import ipdb; ipdb.set_trace()
         ixs = super().forward(pred_dct, target_lst)
 
-        pred_ixs = th.stack([ix[0] for ix in ixs]).to(preds['bbox'].device)
-        tgt_ixs = th.stack([ix[1] for ix in ixs]).to(preds['bbox'].device)
+        pred_ixs = th.stack([ix[0] for ix in ixs]).to(targets['bbox'].device)
+        tgt_ixs = th.stack([ix[1] for ix in ixs]).to(targets['bbox'].device)
         return pred_ixs, tgt_ixs
 
     def match_single(self, pred_bbs, pred_cls, target_bbs, target_cls, ix):
