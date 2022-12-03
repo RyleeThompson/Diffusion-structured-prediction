@@ -20,7 +20,7 @@ DEBUG = False
 single_gpu = False
 use_valid_set = False
 overfit = False
-evalu_before = False
+evalu_before = True
 prog_bar_freq = 1
 overfit_batches_init = 0.0
 

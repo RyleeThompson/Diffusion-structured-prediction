@@ -206,9 +206,9 @@ class ReverseGaussianDiffusion(pl.LightningModule):
 
         batch['x_t']['bbox'] = batch['x_t']['bbox'].clamp(-1, 1)
         x_t_cls = batch['x_t'].classes_in_train_fmt().clamp(-1, 1)
-        if batch['x_t'].train_cls_fmt == 'classes_bits':
+        if batch['x_t'].train_cls_fmt == 'bits':
             batch['x_t'].classes_bits = x_t_cls
-        elif batch['x_t'].train_cls_fmt == 'classes_softmax':
+        elif batch['x_t'].train_cls_fmt == 'softmax':
             batch['x_t'].classes_softmax = x_t_cls
         else:
             raise Exception()
