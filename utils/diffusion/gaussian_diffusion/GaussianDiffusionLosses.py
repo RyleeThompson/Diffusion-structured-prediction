@@ -72,7 +72,7 @@ class GDLossCalculator:
         # else:
         #     noise = noise['cls'].flatten(start_dim=0, end_dim=1)
 
-        noise = noise['cls'] if feat_key == 'classes_bits' else noise['bb']
+        noise = noise['cls'] if feat_key in ['classes_softmax', 'classes_bits'] else noise['bb']
         loss = self.loss_fn(model_out, x_start, x_t, t, noise=noise)
         return loss
 

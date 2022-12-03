@@ -13,6 +13,7 @@ def create_bbox_like(
     kwargs['normalized'] = bbox_like.normalized
     kwargs['num_classes'] = bbox_like.num_classes
     kwargs['train_fmt'] = bbox_like.train_fmt
+    kwargs['train_cls_fmt'] = bbox_like.train_cls_fmt
 
     kwargs['padding_mask'] = padding_mask
     kwargs['bbox'] = bbox
@@ -31,7 +32,7 @@ class BBox:
     def __init__(
         self, bbox, classes, formatter, num_classes,
         padding_mask=None, format='xywh', normalized=False, class_fmt='int',
-        train_fmt='xywh',
+        train_fmt='xywh', train_cls_fmt='bits'
     ):
         """
             BBox: N x M x 4 tensor, N is batch size
@@ -46,6 +47,7 @@ class BBox:
 
         self.num_classes = num_classes
         self.train_fmt = train_fmt
+        self.train_cls_fmt = train_cls_fmt
         self.store_dct = {}
         self.store_dct['bbox'] = bbox
 
@@ -59,6 +61,13 @@ class BBox:
         elif class_fmt == 'softmax':
             self.classes_softmax = classes
             self.store_dct['scores'] = self.scores_soft()
+
+        if self.train_cls_fmt == 'bits':
+            self['train_cls_fmt'] = self['classes_bits']
+        elif self.train_cls_fmt == 'softmax':
+            self['train_cls_fmt'] = self['classes_softmax'].clone() * 2 - 1
+        else:
+            raise Exception()
 
         if padding_mask is not None:
             assert len(bbox.shape) == 3, bbox.shape
@@ -162,6 +171,9 @@ class BBox:
         self.normalized = False
         return self
 
+    def classes_in_train_fmt(self):
+        return self['train_cls_fmt']
+
     def get_features(self, cls_fmt=None):
         if cls_fmt == 'softmax':
             cat_lst = [self['bbox'], self['classes_softmax']]
@@ -240,6 +252,7 @@ class BBox:
             self['classes'], num_classes=self.num_classes)
         self['classes_softmax'] = cls.int2softmax(
             self['classes'], num_classes=self.num_classes)
+        self['train_cls_fmt'] = self['classes_' + self.train_cls_fmt]
 
     @property
     def classes_bits(self):
@@ -251,6 +264,8 @@ class BBox:
         self['classes'] = cls.scaledbits2int(value).clamp(max=self.num_classes - 1)
         self['classes_softmax'] = cls.int2softmax(
             self['classes'], num_classes=self.num_classes)
+        self['train_cls_fmt'] = self['classes_' + self.train_cls_fmt]
+
 
     @property
     def classes_softmax(self):
@@ -262,6 +277,8 @@ class BBox:
         self['classes'] = cls.softmax2int(value)
         self['classes_bits'] = cls.int2scaledbits(
             self['classes'], num_classes=self.num_classes)
+        self['train_cls_fmt'] = self['classes_' + self.train_cls_fmt]
+        
 
     @property
     def shape(self):

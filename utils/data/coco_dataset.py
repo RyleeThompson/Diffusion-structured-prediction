@@ -90,7 +90,7 @@ coco_bg_class = coco_num_classes - 1
 class CocoDataset():
     def __init__(self, set, backbone, imgs_path, anns_path, pad_with,
                  max_num_bbs=coco_max_num_bboxes, bbox_transformer=None,
-                 bb_train_fmt='xywh', randomize_order=False
+                 bb_train_fmt='xywh', randomize_order=False, train_cls_fmt='classes_bits'
                  ):
 
         assert os.path.exists(imgs_path), imgs_path
@@ -98,6 +98,7 @@ class CocoDataset():
 
         self.imgs_path = imgs_path
         self.anns_path = anns_path
+        self.train_cls_fmt = train_cls_fmt
 
         self.ids = pickle.load(open(f'{self.anns_path}/ids.h5', 'rb'))
 
@@ -149,7 +150,7 @@ class CocoDataset():
         bboxes = BBox(
             bboxes, classes, num_classes=coco_num_classes,
             formatter=self.bbox_transformer, format=self.bb_train_fmt, normalized=True,
-            train_fmt=self.bb_train_fmt)
+            train_fmt=self.bb_train_fmt, train_cls_fmt=self.train_cls_fmt)
 
         # import ipdb; ipdb.set_trace()
 
@@ -379,7 +380,7 @@ def get_dataset(
         set, dataset, max_num_tower_blocks, bb_ordering, pad_with,
         bbox_transformer=None, diffusion=True,
         backbone='none', max_num_bbs=coco_max_num_bboxes,
-        bb_train_fmt='xywh', randomize_order=False
+        bb_train_fmt='xywh', randomize_order=False, train_cls_fmt='classes_bits'
 ):
     path = '/scratch/ssd002/datasets/MSCOCO2017'
     # path = 'dataset/coco2017-1.1.0/data/raw'
@@ -405,7 +406,7 @@ def get_dataset(
         return CocoDataset(
             set, backbone, pad_with=pad_with, max_num_bbs=max_num_bbs, imgs_path=img_path,
             anns_path=new_path, bbox_transformer=bbox_transformer, bb_train_fmt=bb_train_fmt,
-            randomize_order=randomize_order)
+            randomize_order=randomize_order, train_cls_fmt=train_cls_fmt)
     elif diffusion is True and dataset == 'tower':
         return TowerDataset(
             set, bbox_transformer, bb_ordering, pad_with=pad_with,
@@ -420,7 +421,7 @@ def get_dataset(
 def collate_bbox_batch(bbox_lst):
     collate_dct = {}
     for key in bbox_lst[0].keys():
-        if ('classes' in key and key != 'classes') or key == 'scores':
+        if ('classes' in key and key != 'classes') or key in ['scores', 'train_cls_fmt']:
             continue
         collate_dct[key] = th.stack([bbox[key] for bbox in bbox_lst], dim=0)
 

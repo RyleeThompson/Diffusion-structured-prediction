@@ -56,7 +56,8 @@ class StructuredDiffusionModel(pl.LightningModule):
         self.reverse_diffusion = ReverseGaussianDiffusion(
             beta_scheduler, model_mean_type, model_var_type,
             sampler=diff_cfg.get('sampler'), eta=diff_cfg.get('eta'),
-            predict_class=self.predict_class, loss_type=diff_cfg['loss_type'])
+            predict_class=self.predict_class, loss_type=diff_cfg['loss_type'],
+            train_cls_fmt=cfg['model']['class_fmt'])
         self.opt_cfg = cfg['optimizer']
         self.max_num_preds = cfg['model']['max_num_preds'] if cfg['dataset'] == 'coco' else cfg['max_num_blocks']
         self.regress_from_gt = cfg['model']['regress_from'] == 'gt'
@@ -94,6 +95,8 @@ class StructuredDiffusionModel(pl.LightningModule):
             maxs = real_x_start.max(0).values.max(0).values
             mins = real_x_start.min(0).values.min(0).values
             raise Exception('GT out of [-1, 1]', maxs, mins, min)
+
+        # import ipdb; ipdb.set_trace()
 
         # batch['x_start'].inverse_normalize()
         # mins = batch['x_start']['bbox'].min(0).values.min(0).values
@@ -266,10 +269,10 @@ class StructuredDiffusionModel(pl.LightningModule):
 
     def inference_batch(self, batch, clip_denoised=True, num_steps_to_ret=10):
         x_t_bb = th.randn_like(batch['x_start']['bbox'])
-        x_t_cls = th.randn_like(batch['x_start']['classes_bits'])
+        x_t_cls = th.randn_like(batch['x_start'].classes_in_train_fmt())
         batch['x_t'] = create_bbox_like(
             x_t_bb, x_t_cls, batch['x_start']['padding_mask'],
-            bbox_like=batch['x_start'], class_fmt='bits')
+            bbox_like=batch['x_start'], class_fmt=batch['x_start'].train_cls_fmt)
 
         batch_res = self.reverse_diffusion.sample(
             self, batch, num_steps_to_ret=num_steps_to_ret,

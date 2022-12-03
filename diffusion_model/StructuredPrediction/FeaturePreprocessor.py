@@ -119,15 +119,19 @@ class XTBBPreprocessor(Preprocessor):
         out_dim = self.get_output_dim(cfg)
         in_dim = 4
         self.predict_class = cfg['model']['predict_class']
+        self.train_cls_fmt = cfg['model']['class_fmt']
         if self.predict_class:
             dataset = cfg['dataset']
             num_classes = cfg['max_num_blocks'] + 1 if dataset == 'tower' else coco_num_classes
-            in_dim += int(cls.num_classes2num_bits(num_classes))
+            if self.train_cls_fmt == 'bits':
+                in_dim += int(cls.num_classes2num_bits(num_classes))
+            else:
+                in_dim += num_classes
         self.x_t_preprocessor = BBPreprocessor(cfg, in_dim=in_dim, out_dim=out_dim)
 
     def forward(self, x_t_bbs, t, bbone_res, *args, **kwargs):
         if self.predict_class:
-            cls_fmt = 'bits'
+            cls_fmt = self.train_cls_fmt
         else:
             cls_fmt = None
         x_t_bbs = x_t_bbs.get_features(cls_fmt=cls_fmt)

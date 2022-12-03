@@ -73,7 +73,8 @@ def initialize_loader(cfg, set, batch_size, pin_memory=True,
         backbone=cfg['model']['backbone'],
         max_num_bbs=cfg['model']['max_num_preds'],
         bb_train_fmt=cfg['data']['bb_fmt'],
-        randomize_order=cfg['data']['randomize_order'])
+        randomize_order=cfg['data']['randomize_order'],
+        train_cls_fmt=cfg['model']['class_fmt'])
 
     collate_fn = DiffusionBatch
 

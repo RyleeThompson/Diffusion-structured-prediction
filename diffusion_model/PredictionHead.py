@@ -21,10 +21,14 @@ class PredHeadJoiner(pl.LightningModule):
             cls_mean_type = cfg['diffusion']['model_mean_type_bb']
             dataset = cfg['dataset']
             num_classes = cfg['max_num_blocks'] + 1 if dataset == 'tower' else coco_num_classes
-            num_bits = int(cls.num_classes2num_bits(num_classes))
+
+            if cfg['model']['class_fmt'] == 'bits':
+                out_dim = int(cls.num_classes2num_bits(num_classes))
+            else:
+                out_dim = num_classes
             self.cls_head = MLPPredHead(
                 cfg, beta_scheduler, g_diffusion, cls_mean_type,
-                out_dim=num_bits)
+                out_dim=out_dim)
         self.g_diffusion = g_diffusion
         self.regress_from_gt = cfg['model']['regress_from'] == 'gt'
         self.bg_loss_mult = cfg['model']['bg_loss_mult'] if not self.regress_from_gt else 0
@@ -41,14 +45,14 @@ class PredHeadJoiner(pl.LightningModule):
     def forward(self, x, batch, clip_denoised, inference=False):
         pos_head_pred = self.bbox_pos_head(x, batch, clip_denoised, 'bbox', inference=inference)
         if hasattr(self, 'cls_head'):
-            cls_head_pred = self.cls_head(x, batch, clip_denoised, 'classes_bits', inference=inference)
+            cls_head_pred = self.cls_head(x, batch, clip_denoised, 'train_cls_fmt', inference=inference)
         else:
             cls_head_pred = None
         
         if inference is False:
             pos_start_pred = pos_head_pred['pred_xstart']
             cls_start_pred = cls_head_pred['pred_xstart']
-            x_start_pred = create_bbox_like(pos_start_pred, cls_start_pred, batch['x_start']['padding_mask'], batch['x_start'], class_fmt='bits')
+            x_start_pred = create_bbox_like(pos_start_pred, cls_start_pred, batch['x_start']['padding_mask'], batch['x_start'], class_fmt=batch['x_start'].train_cls_fmt)
             pred_matched_ix, tgt_matched_ix = self.matcher(x_start_pred, batch['x_start'])
 
             if pred_matched_ix is not None:
@@ -59,7 +63,7 @@ class PredHeadJoiner(pl.LightningModule):
 
             pos_head_loss = self.bbox_pos_head.get_loss(pos_head_pred, batch, 'bbox')
             if cls_head_pred is not None:
-                cls_head_loss = self.cls_head.get_loss(cls_head_pred, batch, 'classes_bits')
+                cls_head_loss = self.cls_head.get_loss(cls_head_pred, batch, 'train_cls_fmt')
             else:
                 cls_head_loss = None
 
@@ -155,7 +159,8 @@ class MLPPredHead(pl.LightningModule):
         self.reverse_diffusion = ReverseGaussianDiffusion(
             beta_scheduler, model_mean_type, model_var_type,
             sampler=diff_cfg.get('sampler'), eta=diff_cfg.get('eta'),
-            predict_class=predict_class, loss_type=diff_cfg['loss_type'])
+            predict_class=predict_class, loss_type=diff_cfg['loss_type'],
+            train_cls_fmt=cfg['model']['class_fmt'])
         self.g_diffusion = g_diffusion
         # if cfg['model']['use_matching']:
         #     self.matcher = DiffusionHungarianMatcher(cfg)

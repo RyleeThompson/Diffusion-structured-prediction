@@ -56,7 +56,7 @@ class GaussianNoiser(pl.LightningModule):
 
         res['x_t'] = create_bbox_like(
             x_t_bb, x_t_cls, x_start['padding_mask'],
-            bbox_like=x_start, class_fmt='bits')
+            bbox_like=x_start, class_fmt=x_start.train_cls_fmt)
 
         bb_noise = noise[..., :x_start['bbox'].shape[-1]]
         cls_noise = noise[..., x_start['bbox'].shape[-1]:]
@@ -74,7 +74,7 @@ class GaussianNoiser(pl.LightningModule):
         return ts, weights
 
     def sample_x_t(self, x_start, noise, ts):
-        x_start_tensor = th.cat([x_start['bbox'], x_start['classes_bits']], dim=-1)
+        x_start_tensor = th.cat([x_start['bbox'], x_start.classes_in_train_fmt()], dim=-1)
         if noise is None:
             noise = th.randn_like(x_start_tensor)
         x_t = self.q_sample(x_start_tensor, ts, noise=noise)

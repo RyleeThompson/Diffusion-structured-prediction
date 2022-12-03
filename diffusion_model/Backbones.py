@@ -278,7 +278,7 @@ class GTruthBBPredictor(pl.LightningModule):
         return noisy_gt_bbs['x_t'].to_train_fmt()
 
     def sample_static_noise(self, x_start, ts, paths, x_t):
-        x_start_tensor = th.cat([x_start['bbox'], x_start['classes_bits']], dim=-1)
+        x_start_tensor = th.cat([x_start['bbox'], x_start.classes_in_train_fmt()], dim=-1)
         noise = []
         for path in paths:
             if path in self.noise_dct:

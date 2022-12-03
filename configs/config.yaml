@@ -44,6 +44,7 @@ evaluation:
   eval_b_size: 128
 
 model:
+  class_fmt: bits
   predict_class: True
   ema_rate: 0.9999
   max_num_preds: 100

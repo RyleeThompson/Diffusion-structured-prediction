@@ -15,7 +15,7 @@ class NLLEvaluation():
         self.set = set
         predict_class = cfg['model']['predict_class']
         if predict_class:
-            self.x_t_cls_fmt = 'bits'
+            self.x_t_cls_fmt = cfg['model']['class_fmt']
         else:
             self.x_t_cls_fmt = None
 
@@ -169,15 +169,15 @@ class NLLEvaluation():
         if 'cls_mean' in model_out:
             vlb_cls = vlb_terms_bpd(
                 model_out['cls_mean'], model_out['cls_log_variance'],
-                x_start=batch['x_start']['classes_bits'], x_t=batch['x_t']['classes_bits'], t=batch['t'],
+                x_start=batch['x_start'].classes_in_train_fmt(), x_t=batch['x_t'].classes_in_train_fmt(), t=batch['t'],
                 beta_scheduler=beta_scheduler)
             vlb = th.cat([vlb_bb, vlb_cls], dim=-1)
 
-            cls_xstart_mse = (model_out['cls_pred_xstart'] - batch['x_start']['classes_bits']) ** 2
+            cls_xstart_mse = (model_out['cls_pred_xstart'] - batch['x_start'].classes_in_train_fmt()) ** 2
             xstart_mse = th.cat([bb_xstart_mse, cls_xstart_mse], dim=-1)
 
             cls_eps = reverse_diffusion._predict_eps_from_xstart(
-                model_out['cls_pred_xstart'], batch['x_t']['classes_bits'], t)
+                model_out['cls_pred_xstart'], batch['x_t'].classes_in_train_fmt(), t)
             cls_eps_mse = (cls_eps - batch['noise'][..., 4:]) ** 2
             eps_mse = th.cat([bb_eps_mse, cls_eps_mse], dim=-1)
 

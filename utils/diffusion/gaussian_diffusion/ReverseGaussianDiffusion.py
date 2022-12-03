@@ -26,7 +26,7 @@ class ReverseGaussianDiffusion(pl.LightningModule):
     # TODO: look into rescale timesteps
     def __init__(self, beta_scheduler, model_mean_type, model_var_type,
                  rescale_timesteps=False, sampler='ddpm', eta=1.0, predict_class=False,
-                 loss_type=None):
+                 loss_type=None, train_cls_fmt='bits'):
         super().__init__()
         self.beta_scheduler = beta_scheduler
         self.rescale_timesteps = rescale_timesteps
@@ -55,7 +55,7 @@ class ReverseGaussianDiffusion(pl.LightningModule):
             raise NotImplementedError(sampler)
         self.eta = eta
         self.predict_class = predict_class
-        self.x_t_cls_fmt = 'bits' if predict_class else None
+        self.x_t_cls_fmt = train_cls_fmt if predict_class else None
         self.simple_regression = loss_type == 'simple_regression'
 
     def identity(self, model_mean, *args, **kwargs):
@@ -190,14 +190,14 @@ class ReverseGaussianDiffusion(pl.LightningModule):
             batch['x_t'] = result['sample'].detach()
             if not self.predict_class:
                 x_t_bb = batch['x_t']
-                x_t_cls = batch['x_start']['classes_bits']
+                x_t_cls = batch['x_start'].classes_in_train_fmt()
                 x_t_mask = batch['x_start']['padding_mask']
             else:
                 x_t_bb = batch['x_t'][..., :4]
                 x_t_cls = batch['x_t'][..., 4:]
                 x_t_mask = batch['x_start']['padding_mask']
 
-            batch['x_t'] = create_bbox_like(x_t_bb, x_t_cls, x_t_mask, bbox_like=batch['x_start'], class_fmt='bits')
+            batch['x_t'] = create_bbox_like(x_t_bb, x_t_cls, x_t_mask, bbox_like=batch['x_start'], class_fmt=batch['x_start'].train_cls_fmt)
             bbone_preds = result['bbone_preds']
 
             if i in steps_to_return:
@@ -205,7 +205,14 @@ class ReverseGaussianDiffusion(pl.LightningModule):
             # break
 
         batch['x_t']['bbox'] = batch['x_t']['bbox'].clamp(-1, 1)
-        batch['x_t'].classes_bits = batch['x_t']['classes_bits'].clamp(-1, 1)
+        x_t_cls = batch['x_t'].classes_in_train_fmt().clamp(-1, 1)
+        if batch['x_t'].train_cls_fmt == 'classes_bits':
+            batch['x_t'].classes_bits = x_t_cls
+        elif batch['x_t'].train_cls_fmt == 'classes_softmax':
+            batch['x_t'].classes_softmax = x_t_cls
+        else:
+            raise Exception()
+
         return {'final_out': batch['x_t'],
                 'all_x_t': all_x_t,
                 'bbone_preds': bbone_preds}
